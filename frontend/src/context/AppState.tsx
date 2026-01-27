@@ -5,12 +5,12 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode
 } from "react"
 import type { FileMetadata, Message, Model } from "../types"
 import { MODEL_CATALOG, STARTER_MESSAGES } from "../data/seed"
+import { buildApiUrl } from "../api/client"
 
 interface AppState {
   models: Model[]
@@ -37,21 +37,70 @@ const createId = () =>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
-// UI-only mock response; replace with real API calls when backend is connected.
-const buildMockResponse = (prompt: string, model: Model | undefined, files: FileMetadata[]) => {
-  const fileList = files.length
-    ? files.map((file) => `- ${file.name} (${Math.round(file.size / 1024)} KB)`).join("\n")
-    : "- No files attached"
+const MAX_ERROR_DETAILS = 280
 
-  return `Planner summary:\n1. Interpret question intent\n2. Identify relevant columns\n3. Prepare aggregation steps\n4. Choose chart type\n\nExecutor notes:\n- Model: ${model?.name ?? "Local Model"}\n- Provider: ${model?.provider ?? "Local"}\n\nFiles in context:\n${fileList}\n\nExample transformation:\n\`\`\`python\nresult = df.groupby("Category")["Sales"].sum().reset_index()\n\`\`\`\n\nAsk a follow-up like "show the top 5 categories" or "plot the trend" and I will continue streaming results.\n\nOriginal prompt: ${prompt}`
+const truncate = (value: string, maxLength: number) =>
+  value.length > maxLength ? `${value.slice(0, maxLength)}…` : value
+
+const extractRetrySeconds = (message: string) => {
+  const retryMatch = message.match(/retry in ([0-9.]+)s/i)
+  if (retryMatch?.[1]) {
+    return Math.ceil(Number(retryMatch[1]))
+  }
+
+  const delayMatch = message.match(/retry_delay\s*{[^}]*seconds:\s*(\d+)/i)
+  if (delayMatch?.[1]) {
+    return Number(delayMatch[1])
+  }
+
+  return null
+}
+
+const NONSENSE_PATTERNS = [/^test+$/i, /^tes+$/i, /^asdf+$/i, /^qwer+$/i, /^ffff+$/i, /^ggg+$/i, /^aaa+$/i, /^bbb+$/i, /^xxx+$/i]
+
+const isLowIntentPrompt = (prompt: string) => {
+  const trimmed = prompt.trim()
+  if (!trimmed) return true
+  if (!/[a-zA-Z]/.test(trimmed)) return true
+  if (trimmed.length < 4) return true
+  if (trimmed.split(/\s+/).length === 1 && trimmed.length < 6) return true
+  return NONSENSE_PATTERNS.some((pattern) => pattern.test(trimmed))
+}
+
+const summarizeError = (message: string, modelId: string) => {
+  const lower = message.toLowerCase()
+  const retrySeconds = extractRetrySeconds(message)
+
+  if (lower.includes("quota") || lower.includes("rate limit") || lower.includes("429")) {
+    const retryNote = retrySeconds ? ` Try again in about ${retrySeconds}s.` : ""
+    return {
+      variant: "error" as const,
+      summary: `Rate limit reached for ${modelId}.${retryNote} Wait a bit, reduce requests, or switch models.`,
+      details: truncate(message, MAX_ERROR_DETAILS)
+    }
+  }
+
+  if (lower.includes("tabulate")) {
+    return {
+      variant: "error" as const,
+      summary:
+        "Backend is missing the 'tabulate' dependency (needed for table formatting). Install it on the server and retry.",
+      details: truncate(message, MAX_ERROR_DETAILS)
+    }
+  }
+
+  return {
+    variant: "error" as const,
+    summary: `Error: ${truncate(message, MAX_ERROR_DETAILS)}`,
+    details: undefined
+  }
 }
 
 export const AppStateProvider = ({ children }: { children: ReactNode }) => {
-  const [models] = useState<Model[]>(MODEL_CATALOG)
-  const [selectedModelId, setSelectedModelId] = useState(models[0]?.id ?? "")
+  const [models, setModels] = useState<Model[]>(MODEL_CATALOG)
+  const [selectedModelId, setSelectedModelId] = useState(MODEL_CATALOG[0]?.id ?? "")
   const [files, setFiles] = useState<FileMetadata[]>([])
   const [messages, setMessages] = useState<Message[]>(STARTER_MESSAGES)
-  const streamingTimers = useRef<number[]>([])
 
   const selectModel = useCallback((id: string) => {
     setSelectedModelId(id)
@@ -69,9 +118,65 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     setFiles((prev) => prev.filter((file) => file.id !== id))
   }, [])
 
-  // Simulate token streaming by incrementally revealing the mock response.
+  // Fetch available models from the backend; fall back to local catalog if unavailable.
+  useEffect(() => {
+    let isMounted = true
+
+    const loadModels = async () => {
+      try {
+        const response = await fetch(buildApiUrl("/api/models"))
+        if (!response.ok) {
+          throw new Error("Unable to load models")
+        }
+        const data = (await response.json()) as { models?: Record<string, string> | string[] }
+        const modelsPayload = data.models
+
+        const cleanName = (label: string) => label.split(" - ")[0].trim()
+        const normalized: Model[] = Array.isArray(modelsPayload)
+          ? modelsPayload.map((modelId) => ({
+              id: modelId,
+              name: cleanName(modelId),
+              provider: "Gemini",
+              contextWindow: 8192,
+              status: "available",
+              description: "Available via backend"
+            }))
+          : modelsPayload
+            ? Object.entries(modelsPayload).map(([modelId, label]) => ({
+                id: modelId,
+                name: cleanName(label),
+                provider: "Gemini",
+                contextWindow: 8192,
+                status: "available",
+                description: label
+              }))
+            : MODEL_CATALOG
+
+        if (isMounted) {
+          setModels(normalized)
+          setSelectedModelId((prev) =>
+            normalized.find((model) => model.id === prev) ? prev : normalized[0]?.id ?? ""
+          )
+        }
+      } catch {
+        if (isMounted) {
+          setModels(MODEL_CATALOG)
+          setSelectedModelId((prev) =>
+            MODEL_CATALOG.find((model) => model.id === prev) ? prev : MODEL_CATALOG[0]?.id ?? ""
+          )
+        }
+      }
+    }
+
+    loadModels()
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  // Send the prompt to the backend and append the response to the chat.
   const sendMessage = useCallback(
-    (content: string) => {
+    async (content: string) => {
       const trimmed = content.trim()
       if (!trimmed) return
 
@@ -83,52 +188,128 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
         createdAt: timestamp
       }
 
+      if (isLowIntentPrompt(trimmed)) {
+        const assistantMessage: Message = {
+          id: createId(),
+          role: "assistant",
+          content:
+            "Pertanyaannya belum jelas. Tolong jelaskan apa yang ingin kamu cari dari data (contoh: \"top 5 state by sales\", \"trend profit per tahun\").",
+          createdAt: timestamp,
+          variant: "warning"
+        }
+        setMessages((prev) => [...prev, userMessage, assistantMessage])
+        return
+      }
+
       const assistantId = createId()
       const assistantMessage: Message = {
         id: assistantId,
         role: "assistant",
-        content: "",
+        content: "Thinking...",
         createdAt: timestamp,
         isStreaming: true
       }
 
       setMessages((prev) => [...prev, userMessage, assistantMessage])
 
-      // Pick the selected model to label the mock response.
-      const model = models.find((entry) => entry.id === selectedModelId)
-      const responseText = buildMockResponse(trimmed, model, files)
-      let cursor = 0
+      const latestFile = [...files]
+        .reverse()
+        .find((file) => file.status === "ready" && file.filepath)
 
-      const intervalId = window.setInterval(() => {
-        cursor = Math.min(responseText.length, cursor + Math.max(2, Math.floor(Math.random() * 6)))
+      if (!latestFile?.filepath) {
         setMessages((prev) =>
           prev.map((message) =>
             message.id === assistantId
               ? {
                   ...message,
-                  content: responseText.slice(0, cursor),
-                  isStreaming: cursor < responseText.length
+                  content: "Please upload a CSV or XLSX file first.",
+                  variant: "warning",
+                  isStreaming: false
                 }
               : message
           )
         )
+        return
+      }
 
-        if (cursor >= responseText.length) {
-          window.clearInterval(intervalId)
+      try {
+        const response = await fetch(buildApiUrl("/api/query"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: trimmed,
+            model: selectedModelId,
+            filepath: latestFile.filepath
+          })
+        })
+
+        let data: {
+          success?: boolean
+          result?: string
+          plan?: unknown
+          chart?: unknown
+          error?: string
+        } | null = null
+
+        try {
+          data = (await response.json()) as typeof data
+        } catch {
+          data = null
         }
-      }, 18)
 
-      streamingTimers.current.push(intervalId)
+        if (!response.ok) {
+          const fallback = data?.error ?? `Request failed (${response.status})`
+          throw new Error(fallback)
+        }
+
+        if (data?.success === false) {
+          const fallback =
+            data?.error ?? (typeof data?.result === "string" ? data.result : "The request failed.")
+          throw new Error(fallback)
+        }
+
+        const rawResult = data?.result ?? "No result returned."
+        const contentText =
+          typeof rawResult === "string" ? rawResult : `\`\`\`json\n${JSON.stringify(rawResult, null, 2)}\n\`\`\``
+
+        let composed = contentText
+
+        if (data?.chart) {
+          composed += `\n\nChart ready below.`
+        }
+
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === assistantId
+              ? {
+                  ...message,
+                  content: composed,
+                  chart: data?.chart ?? undefined,
+                  isStreaming: false
+                }
+              : message
+          )
+        )
+      } catch (error) {
+        const messageText = error instanceof Error ? error.message : "Something went wrong."
+        const summarized = summarizeError(messageText, selectedModelId)
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === assistantId
+              ? {
+                  ...message,
+                  content: summarized.summary,
+                  details: summarized.details,
+                  variant: summarized.variant,
+                  isStreaming: false
+                }
+              : message
+          )
+        )
+      }
     },
-    [files, models, selectedModelId]
+    [files, selectedModelId]
   )
-
-  useEffect(() => {
-    const timers = streamingTimers.current
-    return () => {
-      timers.forEach((timer) => window.clearInterval(timer))
-    }
-  }, [])
 
   const value = useMemo<AppContextValue>(
     () => ({

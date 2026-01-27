@@ -2,7 +2,7 @@ import type { Message, Model } from "../types"
 
 export const MODEL_CATALOG: Model[] = [
   {
-    id: "gemini-2-5-flash",
+    id: "gemini-2.5-flash",
     name: "Gemini 2.5 Flash",
     provider: "Gemini",
     contextWindow: 8192,
@@ -10,7 +10,7 @@ export const MODEL_CATALOG: Model[] = [
     description: "Fast, cost-efficient model for daily analysis."
   },
   {
-    id: "gemini-2-5-pro",
+    id: "gemini-2.5-pro",
     name: "Gemini 2.5 Pro",
     provider: "Gemini",
     contextWindow: 16384,

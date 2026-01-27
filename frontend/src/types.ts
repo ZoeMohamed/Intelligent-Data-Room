@@ -6,6 +6,9 @@ export interface Message {
   content: string
   createdAt: string
   isStreaming?: boolean
+  chart?: Record<string, unknown>
+  variant?: "normal" | "warning" | "error"
+  details?: string
 }
 
 export type ModelStatus = "available" | "limited" | "offline"
@@ -29,4 +32,8 @@ export interface FileMetadata {
   status: FileStatus
   progress: number
   error?: string
+  filepath?: string
+  columnNames?: string[]
+  preview?: Record<string, unknown>[]
+  rows?: number
 }

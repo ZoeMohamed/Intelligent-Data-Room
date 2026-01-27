@@ -31,6 +31,22 @@ ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+LOW_INTENT_QUERIES = {'test', 'hi', 'hello', 'hey', 'ok', 'yes', 'no'}
+DATA_KEYWORDS = [
+    'sales', 'profit', 'revenue', 'customer', 'product', 'order', 'total', 'average',
+    'show', 'display', 'chart', 'plot', 'visualize', 'trend', 'compare', 'top', 'bottom',
+    'category', 'region', 'state', 'segment', 'discount', 'quantity', 'ship'
+]
+
+def is_low_intent_query(query: str) -> bool:
+    """Detect too-short or meaningless prompts to avoid unnecessary model calls."""
+    query_lower = query.lower().strip()
+    if len(query_lower) < 5:
+        return True
+    if query_lower in LOW_INTENT_QUERIES:
+        return True
+    return False
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint"""
@@ -95,16 +111,46 @@ def process_query():
     query = data.get('query')
     filepath = data.get('filepath')
     model = data.get('model', default_model)
-    
+
     if not filepath or not os.path.exists(filepath):
         return jsonify({"error": "No data file uploaded or file not found"}), 400
     
     try:
+        # Reject low-intent or meaningless queries early
+        if is_low_intent_query(query):
+            return jsonify({
+                "success": False,
+                "error": "Please ask a specific question about your data.",
+                "suggestions": [
+                    "What are the total sales by category?",
+                    "Show me the top 10 customers by profit",
+                    "Create a scatter plot of discount vs profit",
+                    "Which products are unprofitable?"
+                ]
+            }), 400
+
         # Read data
         if filepath.endswith('.csv'):
             df = pd.read_csv(filepath)
         else:
             df = pd.read_excel(filepath)
+
+        # Check if the query references data context
+        query_lower = query.lower().strip()
+        has_data_keyword = any(keyword in query_lower for keyword in DATA_KEYWORDS)
+        has_column_name = any(col.lower() in query_lower for col in df.columns)
+
+        if not has_data_keyword and not has_column_name and len(query.split()) < 4:
+            return jsonify({
+                "success": False,
+                "error": "Please mention specific columns or metrics from your data.",
+                "available_columns": df.columns.tolist()[:10],
+                "suggestions": [
+                    "What is the total sales?",
+                    "Show profit by region",
+                    "List top customers"
+                ]
+            }), 400
         
         # Get conversation context
         context = memory.get_context_string()

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import { useAppState } from "../context/AppState"
 import MarkdownRenderer from "./MarkdownRenderer"
+import ChartRenderer from "./ChartRenderer"
+import { buildApiUrl } from "../api/client"
 
 // Keep file validation aligned with the backend CSV/XLSX support.
 const MAX_FILE_MB = 10
@@ -38,7 +40,6 @@ const ChatContainer = () => {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const uploadTimers = useRef<number[]>([])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -52,22 +53,47 @@ const ChatContainer = () => {
     textareaRef.current?.focus()
   }
 
-  // UI-only upload simulation; backend should replace this with real progress updates.
-  const simulateUpload = (entryId: string, startProgress = 10) => {
-    let progress = startProgress
-    const intervalId = window.setInterval(() => {
-      progress = Math.min(100, progress + Math.random() * 18)
-      updateFile(entryId, { progress, status: progress >= 100 ? "ready" : "uploading" })
-      if (progress >= 100) {
-        window.clearInterval(intervalId)
+  const uploadFile = async (file: File, entryId: string) => {
+    const form = new FormData()
+    form.append("file", file)
+
+    updateFile(entryId, { status: "uploading", progress: 30 })
+
+    try {
+      const response = await fetch(buildApiUrl("/api/upload"), {
+        method: "POST",
+        body: form
+      })
+      const data = (await response.json()) as {
+        filepath?: string
+        column_names?: string[]
+        preview?: Record<string, unknown>[]
+        rows?: number
+        error?: string
       }
-    }, 220)
-    uploadTimers.current.push(intervalId)
+
+      if (!response.ok || data.error) {
+        throw new Error(data.error || "Upload failed.")
+      }
+
+      updateFile(entryId, {
+        status: "ready",
+        progress: 100,
+        filepath: data.filepath,
+        columnNames: data.column_names,
+        preview: data.preview,
+        rows: data.rows
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Upload failed."
+      updateFile(entryId, { status: "error", progress: 0, error: message })
+    }
   }
 
   // Convert native File objects into UI metadata for chips and progress.
   const handleFiles = (selected: FileList | File[]) => {
-    const entries = Array.from(selected).map((file) => {
+    const fileArray = Array.from(selected)
+    const entries = fileArray.map((file) => {
       const sizeMb = file.size / (1024 * 1024)
       const isValidType = isAllowedType(file)
       const isValidSize = sizeMb <= MAX_FILE_MB
@@ -88,31 +114,25 @@ const ChatContainer = () => {
             : undefined
       }
 
-      if (status === "uploading") {
-        simulateUpload(id, entry.progress)
-      }
-
       return entry
     })
 
     if (entries.length) {
       addFiles(entries)
+      entries.forEach((entry, index) => {
+        if (entry.status === "uploading") {
+          uploadFile(fileArray[index], entry.id)
+        }
+      })
     }
   }
-
-  useEffect(() => {
-    const timers = uploadTimers.current
-    return () => {
-      timers.forEach((timer) => window.clearInterval(timer))
-    }
-  }, [])
 
   return (
     <div className="flex h-full flex-col rounded-2xl border border-border bg-panel/90 p-6 shadow-soft">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-muted">Chat</p>
-          <h2 className="font-display text-2xl text-ink">Local LLM Orchestrator</h2>
+          <h2 className="font-display text-2xl text-ink">Intelligent Data Room</h2>
         </div>
         <div className="flex items-center gap-3">
           <label className="text-xs text-muted">Model</label>
@@ -134,6 +154,8 @@ const ChatContainer = () => {
         {messages.map((message) => {
           const isUser = message.role === "user"
           const isSystem = message.role === "system"
+          const isError = message.variant === "error"
+          const isWarning = message.variant === "warning"
           return (
             <div
               key={message.id}
@@ -142,12 +164,29 @@ const ChatContainer = () => {
                   ? "ml-auto border-accent/40 bg-accentSoft text-ink"
                   : isSystem
                     ? "border-border bg-surface text-muted"
-                    : "border-border bg-surface text-ink"
+                    : isError
+                      ? "border-red-200 bg-red-50 text-red-700"
+                      : isWarning
+                        ? "border-amber-200 bg-amber-50 text-amber-800"
+                        : "border-border bg-surface text-ink"
               }`}
             >
               <div className="space-y-2">
                 {message.role === "assistant" ? (
-                  <MarkdownRenderer content={message.content || "Streaming response..."} />
+                  <>
+                    <MarkdownRenderer content={message.content || "Streaming response..."} />
+                    {message.details && (
+                      <details className="rounded-xl border border-border bg-white/70 p-3 text-xs text-ink">
+                        <summary className="cursor-pointer text-xs font-semibold text-muted">
+                          Details
+                        </summary>
+                        <pre className="mt-2 whitespace-pre-wrap text-[0.72rem] text-ink">
+                          {message.details}
+                        </pre>
+                      </details>
+                    )}
+                    <ChartRenderer figure={message.chart ?? null} />
+                  </>
                 ) : (
                   <p className="leading-relaxed text-ink">{message.content}</p>
                 )}
@@ -204,7 +243,12 @@ const ChatContainer = () => {
             {files.map((file) => (
               <div
                 key={file.id}
-                className="flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1 text-xs text-ink"
+                title={file.error}
+                className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${
+                  file.status === "error"
+                    ? "border-red-300 bg-red-50 text-red-600"
+                    : "border-border bg-panel text-ink"
+                }`}
               >
                 <span>{file.name}</span>
                 <span className="text-muted">{formatBytes(file.size)}</span>
