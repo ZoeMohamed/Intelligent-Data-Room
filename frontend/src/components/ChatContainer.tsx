@@ -3,6 +3,7 @@ import { useAppState } from "../context/AppState"
 import MarkdownRenderer from "./MarkdownRenderer"
 import ChartRenderer from "./ChartRenderer"
 import { buildApiUrl } from "../api/client"
+import type { FileMetadata, FileStatus } from "../types"
 
 // Keep file validation aligned with the backend CSV/XLSX support.
 const MAX_FILE_MB = 10
@@ -93,14 +94,14 @@ const ChatContainer = () => {
   // Convert native File objects into UI metadata for chips and progress.
   const handleFiles = (selected: FileList | File[]) => {
     const fileArray = Array.from(selected)
-    const entries = fileArray.map((file) => {
+    const entries: FileMetadata[] = fileArray.map((file) => {
       const sizeMb = file.size / (1024 * 1024)
       const isValidType = isAllowedType(file)
       const isValidSize = sizeMb <= MAX_FILE_MB
       const id = createId()
 
-      const status = isValidType && isValidSize ? "uploading" : "error"
-      const entry = {
+      const status: FileStatus = isValidType && isValidSize ? "uploading" : "error"
+      const entry: FileMetadata = {
         id,
         name: file.name,
         size: file.size,

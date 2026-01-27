@@ -12,6 +12,14 @@ import type { FileMetadata, Message, Model } from "../types"
 import { MODEL_CATALOG, STARTER_MESSAGES } from "../data/seed"
 import { buildApiUrl } from "../api/client"
 
+type QueryResponse = {
+  success?: boolean
+  result?: unknown
+  plan?: unknown
+  chart?: unknown
+  error?: string
+}
+
 interface AppState {
   models: Model[]
   selectedModelId: string
@@ -95,6 +103,9 @@ const summarizeError = (message: string, modelId: string) => {
     details: undefined
   }
 }
+
+const toChartPayload = (payload: unknown): Record<string, unknown> | undefined =>
+  payload && typeof payload === "object" ? (payload as Record<string, unknown>) : undefined
 
 export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const [models, setModels] = useState<Model[]>(MODEL_CATALOG)
@@ -243,16 +254,10 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
           })
         })
 
-        let data: {
-          success?: boolean
-          result?: string
-          plan?: unknown
-          chart?: unknown
-          error?: string
-        } | null = null
+        let data: QueryResponse | null = null
 
         try {
-          data = (await response.json()) as typeof data
+          data = (await response.json()) as QueryResponse
         } catch {
           data = null
         }
@@ -274,7 +279,8 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
 
         let composed = contentText
 
-        if (data?.chart) {
+        const chartPayload = toChartPayload(data?.chart)
+        if (chartPayload) {
           composed += `\n\nChart ready below.`
         }
 
@@ -284,7 +290,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
               ? {
                   ...message,
                   content: composed,
-                  chart: data?.chart ?? undefined,
+                  chart: chartPayload,
                   isStreaming: false
                 }
               : message

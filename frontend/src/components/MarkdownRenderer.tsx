@@ -26,16 +26,18 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
         pre: ({ ...props }) => (
           <pre className="mt-3 overflow-x-auto rounded-xl border border-border bg-surface p-4 text-xs text-ink" {...props} />
         ),
-        code: ({ inline, className, children, ...props }) =>
-          inline ? (
-            <code className="rounded bg-accentSoft px-1 py-0.5 text-xs text-ink" {...props}>
-              {children}
-            </code>
-          ) : (
+        code: ({ className, children, ...props }) => {
+          const isBlock = typeof className === "string" && className.includes("language-")
+          return isBlock ? (
             <code className={className} {...props}>
               {children}
             </code>
+          ) : (
+            <code className="rounded bg-accentSoft px-1 py-0.5 text-xs text-ink" {...props}>
+              {children}
+            </code>
           )
+        }
       }}
     >
       {content}
