@@ -193,7 +193,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
           id: createId(),
           role: "assistant",
           content:
-            "Pertanyaannya belum jelas. Tolong jelaskan apa yang ingin kamu cari dari data (contoh: \"top 5 state by sales\", \"trend profit per tahun\").",
+            "Your question is a bit vague. Please be more specific about what you want from the data (e.g., \"top 5 states by sales\", \"profit trend per year\").",
           createdAt: timestamp,
           variant: "warning"
         }

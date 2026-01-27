@@ -130,9 +130,12 @@ const ChatContainer = () => {
   return (
     <div className="flex h-full flex-col rounded-2xl border border-border bg-panel/90 p-6 shadow-soft">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-muted">Chat</p>
-          <h2 className="font-display text-2xl text-ink">Intelligent Data Room</h2>
+        <div className="flex items-center gap-3">
+          <img src="/logo.svg" alt="Intelligent Data Room logo" className="h-11 w-11" />
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-muted">Chat</p>
+            <h2 className="font-display text-2xl text-ink">Intelligent Data Room</h2>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <label className="text-xs text-muted">Model</label>
