@@ -353,4 +353,4 @@ ConversationMemory(max_history=10)  # Increase from 5 to 10
 ---
 
 **Last Updated**: January 27, 2026  
-**Author**: Intelligent Data Room Team
+**Author**: Zo
