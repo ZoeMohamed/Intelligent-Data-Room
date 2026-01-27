@@ -476,8 +476,6 @@ npm run lint
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Fast setup
 - **[SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md)** - AI prompts
-- **[RATE_LIMITS.md](RATE_LIMITS.md)** - API limits
-- **[TESTING_REPORT.md](TESTING_REPORT.md)** - Test results
 
 ---
 
