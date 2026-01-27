@@ -8,6 +8,10 @@ import type { FileMetadata, FileStatus } from "../types"
 // Keep file validation aligned with the backend CSV/XLSX support.
 const MAX_FILE_MB = 10
 const ALLOWED_EXTENSIONS = ["csv", "xlsx"]
+const MEMORY_LIMIT = 5
+
+const truncateText = (value: string, max = 90) =>
+  value.length > max ? `${value.slice(0, max).trimEnd()}…` : value
 
 const formatBytes = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`
@@ -46,12 +50,20 @@ const ChatContainer = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault()
+  const memoryPreview = messages
+    .filter((message) => message.role !== "system" && message.content.trim().length > 0)
+    .slice(-MEMORY_LIMIT)
+
+  const sendCurrentInput = () => {
     if (!input.trim()) return
     sendMessage(input)
     setInput("")
     textareaRef.current?.focus()
+  }
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+    sendCurrentInput()
   }
 
   const uploadFile = async (file: File, entryId: string) => {
@@ -154,7 +166,42 @@ const ChatContainer = () => {
         </div>
       </div>
 
-      <div className="mt-6 flex-1 space-y-4 overflow-y-auto pr-2">
+      <div className="mt-4 rounded-2xl border border-border/80 bg-gradient-to-br from-white via-white to-accentSoft/40 p-4 shadow-soft">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center rounded-full bg-accentSoft px-2.5 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-accent">
+              Memory
+            </span>
+            <span className="text-[0.7rem] text-muted">Last {MEMORY_LIMIT} messages</span>
+          </div>
+          <span className="text-[0.65rem] text-muted">Used for follow-up questions</span>
+        </div>
+        {memoryPreview.length === 0 ? (
+          <p className="mt-3 text-[0.8rem] text-muted">No recent context yet.</p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {memoryPreview.map((message) => (
+              <div
+                key={message.id}
+                className="flex items-start gap-3 rounded-xl border border-border/70 bg-white/70 px-3 py-2 text-[0.78rem] text-ink shadow-[0_10px_30px_-25px_rgba(15,23,42,0.35)]"
+              >
+                <span
+                  className={`mt-0.5 inline-flex min-w-[72px] items-center justify-center rounded-full px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] ${
+                    message.role === "user"
+                      ? "bg-accentSoft text-accent"
+                      : "bg-surface text-muted"
+                  }`}
+                >
+                  {message.role === "user" ? "User" : "Assistant"}
+                </span>
+                <span className="leading-relaxed">{truncateText(message.content, 140)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-2">
         {messages.map((message) => {
           const isUser = message.role === "user"
           const isSystem = message.role === "system"
@@ -236,6 +283,12 @@ const ChatContainer = () => {
             placeholder="Ask about your data..."
             value={input}
             onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault()
+                sendCurrentInput()
+              }
+            }}
             className="h-14 flex-1 resize-none bg-transparent text-sm text-ink outline-none placeholder:text-muted"
           />
           <button type="submit" className="h-12 rounded-full bg-accent px-5 text-sm font-semibold text-white shadow-glow">

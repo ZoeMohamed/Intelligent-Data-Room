@@ -7,6 +7,11 @@ An AI-powered data analysis application with **Multi-Agent System**. Ask questio
 ![React](https://img.shields.io/badge/react-18.3+-blue.svg)
 ![Streamlit](https://img.shields.io/badge/streamlit-1.31.0-red.svg)
 
+## 🔗 Live Demos
+
+- **Streamlit app:** https://intelligent-data-rooms.streamlit.app/
+- **React frontend:** https://intelligent-data-rooms.vercel.app/
+
 ---
 
 ## 🎯 What is This?
@@ -71,11 +76,11 @@ python api.py
 cd frontend
 npm install
 cp .env.example .env
-# Edit .env: VITE_API_URL=http://localhost:5000
+# Edit .env: VITE_API_BASE_URL=http://localhost:5001
 npm run dev
 ```
 
-**→ API: http://localhost:5000**  
+**→ API: http://localhost:5001**  
 **→ Frontend: http://localhost:5173**
 
 ### 🌐 Option 3: Deploy to Render.com
@@ -195,9 +200,8 @@ GEMINI_API_KEY_3=backup_key_2
 ### Frontend Environment (`frontend/.env`)
 
 ```bash
-# Backend API endpoint
-VITE_API_URL=http://localhost:8501
-VITE_BACKEND_URL=http://localhost:8501
+# Backend API endpoint (Flask API)
+VITE_API_BASE_URL=http://localhost:5001
 ```
 
 ### Advanced Settings
@@ -395,7 +399,7 @@ vercel
 - Base: `frontend`
 - Build: `npm run build`
 - Publish: `dist`
-- Env: `VITE_API_URL=https://your-api.onrender.com`
+- Env: `VITE_API_BASE_URL=https://your-api.onrender.com`
 
 ### Test Deployment
 
@@ -439,7 +443,7 @@ streamlit run app.py --server.port 8502
 
 **Can't connect:**
 - Check backend runs on `localhost:8501`
-- Verify `VITE_API_URL` in `frontend/.env`
+- Verify `VITE_API_BASE_URL` in `frontend/.env`
 
 **Build errors:**
 ```bash
