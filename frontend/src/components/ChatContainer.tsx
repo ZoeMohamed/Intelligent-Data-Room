@@ -1,0 +1,223 @@
+import { useEffect, useRef, useState } from "react"
+import { useAppState } from "../context/AppState"
+import MarkdownRenderer from "./MarkdownRenderer"
+
+// Keep file validation aligned with the backend CSV/XLSX support.
+const MAX_FILE_MB = 10
+const ALLOWED_EXTENSIONS = ["csv", "xlsx"]
+
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`
+  const kb = bytes / 1024
+  if (kb < 1024) return `${kb.toFixed(1)} KB`
+  return `${(kb / 1024).toFixed(1)} MB`
+}
+
+const createId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+const isAllowedType = (file: File) => {
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? ""
+  return ALLOWED_EXTENSIONS.includes(extension)
+}
+
+const StreamingDots = () => (
+  <span className="inline-flex items-center gap-1 text-muted">
+    <span className="h-1 w-1 animate-pulse rounded-full bg-muted" />
+    <span className="h-1 w-1 animate-pulse rounded-full bg-muted [animation-delay:150ms]" />
+    <span className="h-1 w-1 animate-pulse rounded-full bg-muted [animation-delay:300ms]" />
+  </span>
+)
+
+const ChatContainer = () => {
+  const { messages, sendMessage, selectedModelId, models, files, addFiles, updateFile, removeFile, selectModel } =
+    useAppState()
+  const [input, setInput] = useState("")
+  const bottomRef = useRef<HTMLDivElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const uploadTimers = useRef<number[]>([])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!input.trim()) return
+    sendMessage(input)
+    setInput("")
+    textareaRef.current?.focus()
+  }
+
+  // UI-only upload simulation; backend should replace this with real progress updates.
+  const simulateUpload = (entryId: string, startProgress = 10) => {
+    let progress = startProgress
+    const intervalId = window.setInterval(() => {
+      progress = Math.min(100, progress + Math.random() * 18)
+      updateFile(entryId, { progress, status: progress >= 100 ? "ready" : "uploading" })
+      if (progress >= 100) {
+        window.clearInterval(intervalId)
+      }
+    }, 220)
+    uploadTimers.current.push(intervalId)
+  }
+
+  // Convert native File objects into UI metadata for chips and progress.
+  const handleFiles = (selected: FileList | File[]) => {
+    const entries = Array.from(selected).map((file) => {
+      const sizeMb = file.size / (1024 * 1024)
+      const isValidType = isAllowedType(file)
+      const isValidSize = sizeMb <= MAX_FILE_MB
+      const id = createId()
+
+      const status = isValidType && isValidSize ? "uploading" : "error"
+      const entry = {
+        id,
+        name: file.name,
+        size: file.size,
+        type: file.type || "unknown",
+        status,
+        progress: status === "uploading" ? 10 : 0,
+        error: !isValidType
+          ? `Unsupported file type. Allowed: ${ALLOWED_EXTENSIONS.join(", ")}.`
+          : !isValidSize
+            ? `File too large. Max ${MAX_FILE_MB} MB.`
+            : undefined
+      }
+
+      if (status === "uploading") {
+        simulateUpload(id, entry.progress)
+      }
+
+      return entry
+    })
+
+    if (entries.length) {
+      addFiles(entries)
+    }
+  }
+
+  useEffect(() => {
+    const timers = uploadTimers.current
+    return () => {
+      timers.forEach((timer) => window.clearInterval(timer))
+    }
+  }, [])
+
+  return (
+    <div className="flex h-full flex-col rounded-2xl border border-border bg-panel/90 p-6 shadow-soft">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.3em] text-muted">Chat</p>
+          <h2 className="font-display text-2xl text-ink">Local LLM Orchestrator</h2>
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="text-xs text-muted">Model</label>
+          <select
+            value={selectedModelId}
+            onChange={(event) => selectModel(event.target.value)}
+            className="rounded-full border border-border bg-surface px-3 py-1 text-xs text-ink"
+          >
+            {models.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="mt-6 flex-1 space-y-4 overflow-y-auto pr-2">
+        {messages.map((message) => {
+          const isUser = message.role === "user"
+          const isSystem = message.role === "system"
+          return (
+            <div
+              key={message.id}
+              className={`rounded-2xl border px-4 py-3 text-sm ${
+                isUser
+                  ? "ml-auto border-accent/40 bg-accentSoft text-ink"
+                  : isSystem
+                    ? "border-border bg-surface text-muted"
+                    : "border-border bg-surface text-ink"
+              }`}
+            >
+              <div className="space-y-2">
+                {message.role === "assistant" ? (
+                  <MarkdownRenderer content={message.content || "Streaming response..."} />
+                ) : (
+                  <p className="leading-relaxed text-ink">{message.content}</p>
+                )}
+                {message.isStreaming && (
+                  <div className="pt-2">
+                    <StreamingDots />
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+        <div ref={bottomRef} />
+      </div>
+
+      <form onSubmit={handleSubmit} className="mt-5">
+        <div className="flex items-end gap-3 rounded-2xl border border-border bg-surface p-3">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-border text-lg text-muted transition hover:border-accent/50 hover:text-ink"
+            aria-label="Attach file"
+          >
+            +
+          </button>
+          {/* Hidden input is triggered by the plus button for native file selection. */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            multiple
+            accept=".csv,.xlsx"
+            onChange={(event) => {
+              if (event.target.files?.length) {
+                handleFiles(event.target.files)
+                event.target.value = ""
+              }
+            }}
+          />
+          <textarea
+            ref={textareaRef}
+            rows={2}
+            placeholder="Ask about your data..."
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            className="h-14 flex-1 resize-none bg-transparent text-sm text-ink outline-none placeholder:text-muted"
+          />
+          <button type="submit" className="h-12 rounded-full bg-accent px-5 text-sm font-semibold text-white shadow-glow">
+            Send
+          </button>
+        </div>
+        {files.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {files.map((file) => (
+              <div
+                key={file.id}
+                className="flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1 text-xs text-ink"
+              >
+                <span>{file.name}</span>
+                <span className="text-muted">{formatBytes(file.size)}</span>
+                <button type="button" onClick={() => removeFile(file.id)} className="text-muted hover:text-ink">
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </form>
+    </div>
+  )
+}
+
+export default ChatContainer
