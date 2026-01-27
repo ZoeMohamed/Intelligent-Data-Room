@@ -494,13 +494,4 @@ MIT License - see LICENSE file
 - Tableau Superstore dataset
 
 ---
-
-## 📞 Support
-
-- 🐛 [Report bugs](https://github.com/yourusername/intelligent-data-room/issues)
-- 💡 [Request features](https://github.com/yourusername/intelligent-data-room/discussions)
-- ⭐ Star if helpful!
-
----
-
-**Made with ❤️ and 🤖**
+**Made with ❤️ by Zo**
