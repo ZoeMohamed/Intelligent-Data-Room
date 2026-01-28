@@ -43,6 +43,7 @@ const ChatContainer = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const activeFile = files[0]
   const showFileHighlight = Boolean(activeFile && activeFile.status === "ready")
+  const inputDisabled = !showFileHighlight
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -220,14 +221,14 @@ const ChatContainer = () => {
         <div className="relative overflow-hidden rounded-[28px] border border-white/70 bg-white/85 p-3 shadow-[0_30px_80px_-50px_rgba(15,23,42,0.35)] backdrop-blur">
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/80 via-white/50 to-accentSoft/35 opacity-70" />
           <div className="relative flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-white/80 bg-white/90 text-lg text-muted shadow-[0_10px_30px_-18px_rgba(47,91,255,0.35)] transition hover:border-accent/50 hover:text-ink"
-            aria-label="Attach file"
-          >
-            +
-          </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/80 bg-white/90 text-lg text-muted shadow-[0_10px_30px_-18px_rgba(47,91,255,0.35)] transition hover:border-accent/50 hover:text-ink"
+              aria-label="Attach file"
+            >
+              +
+            </button>
           {/* Hidden input is triggered by the plus button for native file selection. */}
           <input
             ref={fileInputRef}
@@ -244,7 +245,7 @@ const ChatContainer = () => {
           <textarea
             ref={textareaRef}
             rows={1}
-            placeholder="Ask about your data..."
+            placeholder={inputDisabled ? "Upload a file to start..." : "Ask about your data..."}
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {
@@ -253,11 +254,17 @@ const ChatContainer = () => {
                 sendCurrentInput()
               }
             }}
-            className="h-11 flex-1 resize-none bg-transparent py-2.5 text-sm leading-6 text-ink outline-none placeholder:text-muted"
+            disabled={inputDisabled}
+            className={`h-11 flex-1 resize-none bg-transparent py-2.5 text-sm leading-6 text-ink outline-none placeholder:text-muted ${
+              inputDisabled ? "cursor-not-allowed opacity-60" : ""
+            }`}
           />
           <button
             type="submit"
-            className="h-11 rounded-full bg-gradient-to-r from-accent to-[#4f7dff] px-6 text-sm font-semibold text-white shadow-[0_18px_40px_-22px_rgba(47,91,255,0.8)] transition hover:brightness-110"
+            disabled={inputDisabled}
+            className={`h-11 rounded-full bg-gradient-to-r from-accent to-[#4f7dff] px-6 text-sm font-semibold text-white shadow-[0_18px_40px_-22px_rgba(47,91,255,0.8)] transition hover:brightness-110 ${
+              inputDisabled ? "cursor-not-allowed opacity-60 hover:brightness-100" : ""
+            }`}
           >
             Send
           </button>

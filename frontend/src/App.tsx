@@ -2,11 +2,11 @@ import ChatContainer from "./components/ChatContainer"
 import { AppStateProvider, useAppState } from "./context/AppState"
 
 const ChatHistorySidebar = () => {
-  const { sessions, activeSessionId, createNewChat, switchChat, deleteChat, clearAllChats } = useAppState()
+  const { sessions, activeSessionId, createNewChat, switchChat, deleteChat } = useAppState()
   const sortedSessions = [...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 
   return (
-    <aside className="hidden h-full w-72 flex-col gap-4 rounded-[28px] border border-white/40 bg-white/55 p-4 shadow-[0_30px_70px_-45px_rgba(15,23,42,0.35)] backdrop-blur-2xl lg:flex">
+    <aside className="sticky top-6 hidden h-[calc(100vh-3rem)] w-72 flex-col gap-4 overflow-hidden rounded-[28px] border border-white/40 bg-white/55 p-4 shadow-[0_30px_70px_-45px_rgba(15,23,42,0.35)] backdrop-blur-2xl lg:flex">
       <div className="flex items-center gap-3">
         <img src="/logo.svg" alt="Intelligent Data Room logo" className="h-10 w-10 rounded-2xl" />
         <div>
@@ -57,48 +57,32 @@ const ChatHistorySidebar = () => {
           )
         })}
       </div>
-      <div className="space-y-2 text-[0.65rem] text-muted">
-        <button
-          type="button"
-          onClick={clearAllChats}
-          className="w-full rounded-full border border-white/60 px-3 py-2 text-[0.7rem] font-semibold text-muted transition hover:border-red-200 hover:text-red-500"
-        >
-          Clear local history
-        </button>
-        <div>History is stored locally on this device.</div>
-      </div>
+      <div className="text-[0.65rem] text-muted">History is stored locally on this device.</div>
     </aside>
   )
 }
 
 const AppShell = () => {
-  const { createNewChat, clearAllChats } = useAppState()
+  const { createNewChat } = useAppState()
 
   return (
-    <div className="min-h-screen text-ink">
-      <main className="mx-auto flex min-h-screen w-full max-w-6xl gap-6 px-4 py-6 sm:px-6">
+    <div className="h-screen text-ink">
+      <main className="mx-auto flex h-screen w-full max-w-6xl gap-6 px-4 py-6 sm:px-6">
         <ChatHistorySidebar />
-        <section className="flex min-h-full flex-1 flex-col gap-4">
+        <section className="flex min-h-0 flex-1 flex-col gap-4">
           <div className="flex items-center justify-between rounded-full border border-white/40 bg-white/60 px-4 py-2 text-xs text-muted shadow-soft backdrop-blur lg:hidden">
             <span className="font-semibold text-ink">Chats</span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={clearAllChats}
-                className="rounded-full border border-white/60 px-3 py-1 text-[0.65rem] font-semibold text-muted"
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                onClick={createNewChat}
-                className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white shadow-glow"
-              >
-                + New chat
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={createNewChat}
+              className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white shadow-glow"
+            >
+              + New chat
+            </button>
           </div>
-          <ChatContainer />
+          <div className="min-h-0 flex-1">
+            <ChatContainer />
+          </div>
         </section>
       </main>
     </div>
