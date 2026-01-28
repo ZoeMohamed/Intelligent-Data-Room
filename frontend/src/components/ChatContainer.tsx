@@ -8,10 +8,6 @@ import type { FileMetadata, FileStatus } from "../types"
 // Keep file validation aligned with the backend CSV/XLSX support.
 const MAX_FILE_MB = 10
 const ALLOWED_EXTENSIONS = ["csv", "xlsx"]
-const MEMORY_LIMIT = 5
-
-const truncateText = (value: string, max = 90) =>
-  value.length > max ? `${value.slice(0, max).trimEnd()}…` : value
 
 const formatBytes = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`
@@ -45,14 +41,12 @@ const ChatContainer = () => {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const hasReadyFile = files.some((file) => file.status === "ready")
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const memoryPreview = messages
-    .filter((message) => message.role !== "system" && message.content.trim().length > 0)
-    .slice(-MEMORY_LIMIT)
 
   const sendCurrentInput = () => {
     if (!input.trim()) return
@@ -141,12 +135,12 @@ const ChatContainer = () => {
   }
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-border bg-panel/90 p-6 shadow-soft">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+    <div className="flex h-full flex-col rounded-[32px] border border-white/45 bg-white/65 p-6 shadow-[0_35px_90px_-55px_rgba(15,23,42,0.35)] backdrop-blur-2xl">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/50 pb-4">
         <div className="flex items-center gap-3">
           <img src="/logo.svg" alt="Intelligent Data Room logo" className="h-11 w-11" />
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-muted">Chat</p>
+            <p className="text-[0.6rem] uppercase tracking-[0.3em] text-muted">Chat</p>
             <h2 className="font-display text-2xl text-ink">Intelligent Data Room</h2>
           </div>
         </div>
@@ -155,7 +149,7 @@ const ChatContainer = () => {
           <select
             value={selectedModelId}
             onChange={(event) => selectModel(event.target.value)}
-            className="rounded-full border border-border bg-surface px-3 py-1 text-xs text-ink"
+            className="rounded-full border border-white/60 bg-white/70 px-3 py-1 text-xs text-ink shadow-soft backdrop-blur"
           >
             {models.map((model) => (
               <option key={model.id} value={model.id}>
@@ -166,40 +160,51 @@ const ChatContainer = () => {
         </div>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-border/80 bg-gradient-to-br from-white via-white to-accentSoft/40 p-4 shadow-soft">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center rounded-full bg-accentSoft px-2.5 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-accent">
-              Memory
-            </span>
-            <span className="text-[0.7rem] text-muted">Last {MEMORY_LIMIT} messages</span>
+      {!hasReadyFile && (
+        <div className="mt-4 rounded-3xl border border-white/60 bg-white/80 p-5 shadow-[0_30px_80px_-55px_rgba(15,23,42,0.35)] backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-accent to-emerald text-white shadow-glow">
+                ↑
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.28em] text-muted">Get Started</p>
+                <h3 className="font-display text-lg text-ink">Upload a CSV or XLSX first</h3>
+                <p className="mt-1 text-sm text-muted">
+                  We’ll analyze your file, then you can ask questions and generate charts.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-full bg-accent px-5 py-2 text-xs font-semibold text-white shadow-glow transition hover:brightness-110"
+            >
+              Upload file
+            </button>
           </div>
-          <span className="text-[0.65rem] text-muted">Used for follow-up questions</span>
-        </div>
-        {memoryPreview.length === 0 ? (
-          <p className="mt-3 text-[0.8rem] text-muted">No recent context yet.</p>
-        ) : (
-          <div className="mt-3 space-y-2">
-            {memoryPreview.map((message) => (
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {[
+              { title: "Step 1", text: "Choose a CSV or XLSX (max 10 MB)." },
+              { title: "Step 2", text: "Preview columns and data types." },
+              { title: "Step 3", text: "Ask questions and visualize trends." }
+            ].map((item) => (
               <div
-                key={message.id}
-                className="flex items-start gap-3 rounded-xl border border-border/70 bg-white/70 px-3 py-2 text-[0.78rem] text-ink shadow-[0_10px_30px_-25px_rgba(15,23,42,0.35)]"
+                key={item.title}
+                className="rounded-2xl border border-white/70 bg-white/70 px-4 py-3 text-xs text-ink shadow-[0_16px_40px_-28px_rgba(15,23,42,0.35)]"
               >
-                <span
-                  className={`mt-0.5 inline-flex min-w-[72px] items-center justify-center rounded-full px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] ${
-                    message.role === "user"
-                      ? "bg-accentSoft text-accent"
-                      : "bg-surface text-muted"
-                  }`}
-                >
-                  {message.role === "user" ? "User" : "Assistant"}
-                </span>
-                <span className="leading-relaxed">{truncateText(message.content, 140)}</span>
+                <div className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted">
+                  {item.title}
+                </div>
+                <div className="mt-1 text-sm text-ink">{item.text}</div>
               </div>
             ))}
           </div>
-        )}
-      </div>
+          <div className="mt-3 text-[0.7rem] text-muted">
+            Supported formats: CSV, XLSX. Your file stays on this session only.
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-2">
         {messages.map((message) => {
@@ -212,14 +217,14 @@ const ChatContainer = () => {
               key={message.id}
               className={`rounded-2xl border px-4 py-3 text-sm ${
                 isUser
-                  ? "ml-auto border-accent/40 bg-accentSoft text-ink"
+                  ? "ml-auto border-accent/30 bg-accent/10 text-ink"
                   : isSystem
-                    ? "border-border bg-surface text-muted"
+                    ? "border-white/60 bg-white/60 text-muted"
                     : isError
-                      ? "border-red-200 bg-red-50 text-red-700"
+                      ? "border-red-200 bg-red-50/80 text-red-700"
                       : isWarning
-                        ? "border-amber-200 bg-amber-50 text-amber-800"
-                        : "border-border bg-surface text-ink"
+                        ? "border-amber-200 bg-amber-50/80 text-amber-800"
+                        : "border-white/60 bg-white/70 text-ink"
               }`}
             >
               <div className="space-y-2">
@@ -227,7 +232,7 @@ const ChatContainer = () => {
                   <>
                     <MarkdownRenderer content={message.content || "Streaming response..."} />
                     {message.details && (
-                      <details className="rounded-xl border border-border bg-white/70 p-3 text-xs text-ink">
+                      <details className="rounded-xl border border-white/70 bg-white/70 p-3 text-xs text-ink">
                         <summary className="cursor-pointer text-xs font-semibold text-muted">
                           Details
                         </summary>
@@ -254,11 +259,13 @@ const ChatContainer = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="mt-5">
-        <div className="flex items-end gap-3 rounded-2xl border border-border bg-surface p-3">
+        <div className="relative overflow-hidden rounded-[28px] border border-white/70 bg-white/85 p-3 shadow-[0_30px_80px_-50px_rgba(15,23,42,0.35)] backdrop-blur">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/80 via-white/50 to-accentSoft/35 opacity-70" />
+          <div className="relative flex items-center gap-3">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-border text-lg text-muted transition hover:border-accent/50 hover:text-ink"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-white/80 bg-white/90 text-lg text-muted shadow-[0_10px_30px_-18px_rgba(47,91,255,0.35)] transition hover:border-accent/50 hover:text-ink"
             aria-label="Attach file"
           >
             +
@@ -279,7 +286,7 @@ const ChatContainer = () => {
           />
           <textarea
             ref={textareaRef}
-            rows={2}
+            rows={1}
             placeholder="Ask about your data..."
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -289,11 +296,15 @@ const ChatContainer = () => {
                 sendCurrentInput()
               }
             }}
-            className="h-14 flex-1 resize-none bg-transparent text-sm text-ink outline-none placeholder:text-muted"
+            className="h-11 flex-1 resize-none bg-transparent py-2.5 text-sm leading-6 text-ink outline-none placeholder:text-muted"
           />
-          <button type="submit" className="h-12 rounded-full bg-accent px-5 text-sm font-semibold text-white shadow-glow">
+          <button
+            type="submit"
+            className="h-11 rounded-full bg-gradient-to-r from-accent to-[#4f7dff] px-6 text-sm font-semibold text-white shadow-[0_18px_40px_-22px_rgba(47,91,255,0.8)] transition hover:brightness-110"
+          >
             Send
           </button>
+          </div>
         </div>
         {files.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
@@ -303,8 +314,8 @@ const ChatContainer = () => {
                 title={file.error}
                 className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${
                   file.status === "error"
-                    ? "border-red-300 bg-red-50 text-red-600"
-                    : "border-border bg-panel text-ink"
+                    ? "border-red-300 bg-red-50/80 text-red-600"
+                    : "border-white/60 bg-white/70 text-ink"
                 }`}
               >
                 <span>{file.name}</span>

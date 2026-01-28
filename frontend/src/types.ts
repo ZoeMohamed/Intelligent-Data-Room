@@ -37,3 +37,12 @@ export interface FileMetadata {
   preview?: Record<string, unknown>[]
   rows?: number
 }
+
+export interface ChatSession {
+  id: string
+  title: string
+  messages: Message[]
+  files: FileMetadata[]
+  createdAt: string
+  updatedAt: string
+}

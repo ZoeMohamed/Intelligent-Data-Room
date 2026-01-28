@@ -24,7 +24,9 @@
     min-height: 100vh;
     font-family: "Manrope", sans-serif;
     color: #0f172a;
-    background: radial-gradient(70% 60% at 50% 20%, #ffffff 0%, #eef2ff 50%, #dff3ff 100%);
+    background: radial-gradient(1200px 800px at 20% 0%, #ffffff 0%, #eef2ff 45%, #dfeeff 100%),
+      radial-gradient(800px 600px at 85% 15%, #f3f4ff 0%, rgba(255, 255, 255, 0) 60%);
+    background-attachment: fixed;
   }
 }
 

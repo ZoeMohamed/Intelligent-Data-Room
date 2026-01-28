@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode
 } from "react"
-import type { FileMetadata, Message, Model } from "../types"
+import type { ChatSession, FileMetadata, Message, Model } from "../types"
 import { MODEL_CATALOG, STARTER_MESSAGES } from "../data/seed"
 import { buildApiUrl } from "../api/client"
 
@@ -25,6 +25,8 @@ interface AppState {
   selectedModelId: string
   files: FileMetadata[]
   messages: Message[]
+  sessions: ChatSession[]
+  activeSessionId: string
 }
 
 interface AppActions {
@@ -33,6 +35,10 @@ interface AppActions {
   updateFile: (id: string, updates: Partial<FileMetadata>) => void
   removeFile: (id: string) => void
   sendMessage: (content: string) => void
+  createNewChat: () => void
+  switchChat: (id: string) => void
+  deleteChat: (id: string) => void
+  clearAllChats: () => void
 }
 
 type AppContextValue = AppState & AppActions
@@ -45,10 +51,47 @@ const createId = () =>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
+const STORAGE_KEY = "idr.chatSessions"
+
 const MAX_ERROR_DETAILS = 280
 
 const truncate = (value: string, maxLength: number) =>
   value.length > maxLength ? `${value.slice(0, maxLength)}…` : value
+
+const safeParseSessions = (raw: string | null): ChatSession[] => {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as ChatSession[]) : []
+  } catch {
+    return []
+  }
+}
+
+const createSession = (seedMessages: Message[] = STARTER_MESSAGES): ChatSession => {
+  const timestamp = new Date().toISOString()
+  return {
+    id: createId(),
+    title: "New chat",
+    messages: seedMessages,
+    files: [],
+    createdAt: timestamp,
+    updatedAt: timestamp
+  }
+}
+
+const getInitialState = () => {
+  if (typeof window === "undefined") {
+    const fallback = createSession()
+    return { sessions: [fallback], activeSessionId: fallback.id }
+  }
+  const stored = safeParseSessions(localStorage.getItem(STORAGE_KEY))
+  if (stored.length > 0) {
+    return { sessions: stored, activeSessionId: stored[0].id }
+  }
+  const seeded = createSession()
+  return { sessions: [seeded], activeSessionId: seeded.id }
+}
 
 const extractRetrySeconds = (message: string) => {
   const retryMatch = message.match(/retry in ([0-9.]+)s/i)
@@ -108,10 +151,14 @@ const toChartPayload = (payload: unknown): Record<string, unknown> | undefined =
   payload && typeof payload === "object" ? (payload as Record<string, unknown>) : undefined
 
 export const AppStateProvider = ({ children }: { children: ReactNode }) => {
+  const initialState = getInitialState()
   const [models, setModels] = useState<Model[]>(MODEL_CATALOG)
   const [selectedModelId, setSelectedModelId] = useState(MODEL_CATALOG[0]?.id ?? "")
-  const [files, setFiles] = useState<FileMetadata[]>([])
-  const [messages, setMessages] = useState<Message[]>(STARTER_MESSAGES)
+  const [sessions, setSessions] = useState<ChatSession[]>(initialState.sessions)
+  const [activeSessionId, setActiveSessionId] = useState(initialState.activeSessionId)
+  const activeSession = sessions.find((session) => session.id === activeSessionId)
+  const [files, setFiles] = useState<FileMetadata[]>(activeSession?.files ?? [])
+  const [messages, setMessages] = useState<Message[]>(activeSession?.messages ?? STARTER_MESSAGES)
 
   const selectModel = useCallback((id: string) => {
     setSelectedModelId(id)
@@ -128,6 +175,85 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const removeFile = useCallback((id: string) => {
     setFiles((prev) => prev.filter((file) => file.id !== id))
   }, [])
+
+  const createNewChat = useCallback(() => {
+    const session = createSession()
+    setSessions((prev) => [session, ...prev])
+    setActiveSessionId(session.id)
+    setMessages(session.messages)
+    setFiles([])
+  }, [])
+
+  const switchChat = useCallback(
+    (id: string) => {
+      const target = sessions.find((session) => session.id === id)
+      if (!target) return
+      setActiveSessionId(id)
+      setMessages(target.messages.length ? target.messages : STARTER_MESSAGES)
+      setFiles(target.files ?? [])
+    },
+    [sessions]
+  )
+
+  const deleteChat = useCallback(
+    (id: string) => {
+      setSessions((prev) => {
+        const nextSessions = prev.filter((session) => session.id !== id)
+        if (nextSessions.length === 0) {
+          const fresh = createSession()
+          setActiveSessionId(fresh.id)
+          setMessages(fresh.messages)
+          setFiles([])
+          return [fresh]
+        }
+        if (id === activeSessionId) {
+          const next = nextSessions[0]
+          setActiveSessionId(next.id)
+          setMessages(next.messages.length ? next.messages : STARTER_MESSAGES)
+          setFiles(next.files ?? [])
+        }
+        return nextSessions
+      })
+    },
+    [activeSessionId]
+  )
+
+  const clearAllChats = useCallback(() => {
+    const fresh = createSession()
+    setSessions([fresh])
+    setActiveSessionId(fresh.id)
+    setMessages(fresh.messages)
+    setFiles([])
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(STORAGE_KEY)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
+  }, [sessions])
+
+  useEffect(() => {
+    if (!activeSessionId) return
+    const timestamp = new Date().toISOString()
+    const firstUser = messages.find((message) => message.role === "user")
+    const derivedTitle = firstUser ? truncate(firstUser.content, 32) : "New chat"
+
+    setSessions((prev) =>
+      prev.map((session) =>
+        session.id === activeSessionId
+          ? {
+              ...session,
+              messages,
+              files,
+              updatedAt: timestamp,
+              title: session.title === "New chat" ? derivedTitle : session.title
+            }
+          : session
+      )
+    )
+  }, [activeSessionId, files, messages])
 
   // Fetch available models from the backend; fall back to local catalog if unavailable.
   useEffect(() => {
@@ -323,13 +449,35 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
       selectedModelId,
       files,
       messages,
+      sessions,
+      activeSessionId,
       selectModel,
       addFiles,
       updateFile,
       removeFile,
-      sendMessage
+      sendMessage,
+      createNewChat,
+      switchChat,
+      deleteChat,
+      clearAllChats
     }),
-    [models, selectedModelId, files, messages, selectModel, addFiles, updateFile, removeFile, sendMessage]
+    [
+      models,
+      selectedModelId,
+      files,
+      messages,
+      sessions,
+      activeSessionId,
+      selectModel,
+      addFiles,
+      updateFile,
+      removeFile,
+      sendMessage,
+      createNewChat,
+      switchChat,
+      deleteChat,
+      clearAllChats
+    ]
   )
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>
