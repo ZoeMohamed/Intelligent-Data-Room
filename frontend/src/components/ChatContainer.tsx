@@ -141,7 +141,7 @@ const ChatContainer = () => {
 
   return (
     <div className="flex h-full flex-col rounded-[32px] border border-white/45 bg-white/65 p-6 shadow-[0_35px_90px_-55px_rgba(15,23,42,0.35)] backdrop-blur-2xl">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/50 pb-4">
+      <div className="sticky top-0 z-10 -mx-6 -mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-white/60 bg-white/80 px-6 py-4 backdrop-blur-2xl">
         <div className="flex items-center gap-3">
           <img src="/logo.svg" alt="Intelligent Data Room logo" className="h-11 w-11" />
           <div>
