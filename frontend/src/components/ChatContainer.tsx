@@ -41,7 +41,6 @@ const ChatContainer = () => {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const hasReadyFile = files.some((file) => file.status === "ready")
   const activeFile = files[0]
   const showFileHighlight = Boolean(activeFile && activeFile.status === "ready")
 
