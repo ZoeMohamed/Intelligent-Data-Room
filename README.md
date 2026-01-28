@@ -85,8 +85,6 @@ npm run dev
 
 ### 🌐 Option 3: Deploy to Render.com
 
-See **[backend/DEPLOY.md](backend/DEPLOY.md)** for full deployment guide.
-
 **Quick Deploy:**
 1. Push to GitHub
 2. Connect to [Render.com](https://render.com)
@@ -234,7 +232,6 @@ max_cache_size = 50  # Queries to cache
 | Data | Pandas 1.5.3 |
 | Visualization | Plotly 5.18.0 |
 | Statistics | statsmodels 0.14.6 |
-| Testing | pytest 8.4.2 |
 | Language | Python 3.11+ |
 
 ### Frontend
@@ -268,11 +265,6 @@ intelligent-data-room/
 │   │   ├── logger.py            # Logging
 │   │   ├── memory_manager.py    # Context memory
 │   │   └── model_config.py      # Model setup
-│   │
-│   ├── 📂 tests/
-│   │   ├── test_setup.py
-│   │   ├── test_agents.py
-│   │   └── test_integration.py
 │   │
 │   └── 📂 data/
 │       └── Sample Superstore.csv
@@ -329,49 +321,9 @@ intelligent-data-room/
 
 ---
 
-## 🧪 Testing
-
-### Backend Tests
-
-```bash
-cd backend
-
-# All tests
-pytest tests/ -v
-
-# Specific tests
-pytest tests/test_agents.py -v
-
-# With coverage
-pytest tests/ --cov=. --cov-report=html
-```
-
-**Status:** 18/19 tests passing ✅
-
-### Frontend (if using)
-
-```bash
-cd frontend
-npm run lint
-npm test
-```
-
-### Manual Testing
-
-Use `backend/data/Sample Superstore.csv` (9,995 rows)
-
-**Try:**
-- "Show sales and profit by category as bar chart"
-- "Which sub-categories are unprofitable?"
-- "Compare sales trends over time"
-
----
-
 ## 🚀 Deployment
 
 ### Deploy Backend API to Render.com
-
-**See [backend/DEPLOY.md](backend/DEPLOY.md) for detailed guide.**
 
 **Quick Steps:**
 1. Push code to GitHub
@@ -401,19 +353,6 @@ vercel
 - Publish: `dist`
 - Env: `VITE_API_BASE_URL=https://your-api.onrender.com`
 
-### Test Deployment
-
-```bash
-# Test health
-curl https://your-app.onrender.com/health
-
-# Test API
-cd backend
-python test_api.py
-```
-
----
-
 ## 🐛 Troubleshooting
 
 ### Backend
@@ -442,7 +381,7 @@ streamlit run app.py --server.port 8502
 ### Frontend
 
 **Can't connect:**
-- Check backend runs on `localhost:8501`
+- Check backend runs on `localhost:5001`
 - Verify `VITE_API_BASE_URL` in `frontend/.env`
 
 **Build errors:**
@@ -466,7 +405,6 @@ npm install
 # Backend
 cd backend
 pip install -r requirements.txt
-pytest tests/
 
 # Frontend
 cd frontend
