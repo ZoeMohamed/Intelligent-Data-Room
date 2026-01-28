@@ -19,11 +19,4 @@ export const MODEL_CATALOG: Model[] = [
   }
 ]
 
-export const STARTER_MESSAGES: Message[] = [
-  {
-    id: "system-1",
-    role: "system",
-    content: "Upload a CSV or XLSX, then ask a question about the data.",
-    createdAt: new Date().toISOString()
-  }
-]
+export const STARTER_MESSAGES: Message[] = []

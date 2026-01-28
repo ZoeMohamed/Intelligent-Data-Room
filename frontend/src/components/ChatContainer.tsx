@@ -42,6 +42,8 @@ const ChatContainer = () => {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const hasReadyFile = files.some((file) => file.status === "ready")
+  const activeFile = files[0]
+  const showFileHighlight = Boolean(activeFile && activeFile.status === "ready")
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -100,7 +102,11 @@ const ChatContainer = () => {
   // Convert native File objects into UI metadata for chips and progress.
   const handleFiles = (selected: FileList | File[]) => {
     const fileArray = Array.from(selected)
-    const entries: FileMetadata[] = fileArray.map((file) => {
+    const firstFile = fileArray[0]
+    if (!firstFile) return
+    files.forEach((file) => removeFile(file.id))
+
+    const entries: FileMetadata[] = [firstFile].map((file) => {
       const sizeMb = file.size / (1024 * 1024)
       const isValidType = isAllowedType(file)
       const isValidSize = sizeMb <= MAX_FILE_MB
@@ -126,11 +132,10 @@ const ChatContainer = () => {
 
     if (entries.length) {
       addFiles(entries)
-      entries.forEach((entry, index) => {
-        if (entry.status === "uploading") {
-          uploadFile(fileArray[index], entry.id)
-        }
-      })
+      const entry = entries[0]
+      if (entry.status === "uploading") {
+        uploadFile(firstFile, entry.id)
+      }
     }
   }
 
@@ -159,52 +164,6 @@ const ChatContainer = () => {
           </select>
         </div>
       </div>
-
-      {!hasReadyFile && (
-        <div className="mt-4 rounded-3xl border border-white/60 bg-white/80 p-5 shadow-[0_30px_80px_-55px_rgba(15,23,42,0.35)] backdrop-blur">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-accent to-emerald text-white shadow-glow">
-                ↑
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-muted">Get Started</p>
-                <h3 className="font-display text-lg text-ink">Upload a CSV or XLSX first</h3>
-                <p className="mt-1 text-sm text-muted">
-                  We’ll analyze your file, then you can ask questions and generate charts.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="rounded-full bg-accent px-5 py-2 text-xs font-semibold text-white shadow-glow transition hover:brightness-110"
-            >
-              Upload file
-            </button>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            {[
-              { title: "Step 1", text: "Choose a CSV or XLSX (max 10 MB)." },
-              { title: "Step 2", text: "Preview columns and data types." },
-              { title: "Step 3", text: "Ask questions and visualize trends." }
-            ].map((item) => (
-              <div
-                key={item.title}
-                className="rounded-2xl border border-white/70 bg-white/70 px-4 py-3 text-xs text-ink shadow-[0_16px_40px_-28px_rgba(15,23,42,0.35)]"
-              >
-                <div className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted">
-                  {item.title}
-                </div>
-                <div className="mt-1 text-sm text-ink">{item.text}</div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 text-[0.7rem] text-muted">
-            Supported formats: CSV, XLSX. Your file stays on this session only.
-          </div>
-        </div>
-      )}
 
       <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-2">
         {messages.map((message) => {
@@ -275,7 +234,6 @@ const ChatContainer = () => {
             ref={fileInputRef}
             type="file"
             className="hidden"
-            multiple
             accept=".csv,.xlsx"
             onChange={(event) => {
               if (event.target.files?.length) {
@@ -306,25 +264,29 @@ const ChatContainer = () => {
           </button>
           </div>
         </div>
-        {files.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {files.map((file) => (
-              <div
-                key={file.id}
-                title={file.error}
-                className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${
-                  file.status === "error"
-                    ? "border-red-300 bg-red-50/80 text-red-600"
-                    : "border-white/60 bg-white/70 text-ink"
-                }`}
-              >
-                <span>{file.name}</span>
-                <span className="text-muted">{formatBytes(file.size)}</span>
-                <button type="button" onClick={() => removeFile(file.id)} className="text-muted hover:text-ink">
-                  ×
-                </button>
-              </div>
-            ))}
+        {activeFile && (
+          <div
+            className={`mt-3 flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-2 text-xs ${
+              activeFile.status === "error"
+                ? "border-red-300 bg-red-50/80 text-red-600"
+                : showFileHighlight
+                  ? "border-emerald/50 bg-emerald/10 text-ink shadow-[0_20px_40px_-30px_rgba(16,185,129,0.35)]"
+                  : "border-white/60 bg-white/70 text-ink"
+            }`}
+          >
+            <span className="font-semibold">
+              {showFileHighlight ? "File uploaded" : activeFile.status === "uploading" ? "Uploading" : "File"}
+            </span>
+            <span className="text-muted">{activeFile.name}</span>
+            <span className="text-muted">{formatBytes(activeFile.size)}</span>
+            {activeFile.error && <span className="text-red-500">{activeFile.error}</span>}
+            <button
+              type="button"
+              onClick={() => removeFile(activeFile.id)}
+              className="ml-auto rounded-full border border-white/70 px-2 py-1 text-[0.65rem] font-semibold text-muted transition hover:border-red-200 hover:text-red-500"
+            >
+              Remove
+            </button>
           </div>
         )}
       </form>
